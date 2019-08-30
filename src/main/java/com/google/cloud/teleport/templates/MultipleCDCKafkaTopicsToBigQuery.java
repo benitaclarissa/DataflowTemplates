@@ -293,7 +293,6 @@ public class MultipleCDCKafkaTopicsToBigQuery {
                                 return row;
                               }
                             })
-                            .withSchema()
                             .withCreateDisposition(CreateDisposition.CREATE_IF_NEEDED)
                             .withWriteDisposition(WriteDisposition.WRITE_APPEND)
             );
