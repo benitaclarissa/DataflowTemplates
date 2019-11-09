@@ -39,6 +39,8 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 import javax.annotation.Nullable;
+import javax.annotation.ParametersAreNullableByDefault;
+
 import org.apache.beam.sdk.annotations.Experimental;
 import org.apache.beam.sdk.coders.AtomicCoder;
 import org.apache.beam.sdk.coders.CannotProvideCoderException;
@@ -307,10 +309,16 @@ public class KafkaIO {
     abstract ValueProvider<String> getCustomizedKeyReplacementProvider();
 
     @Nullable
+    abstract ValueProvider<String> getCustomizedKeyPrefixProvider();
+
+    @Nullable
     abstract String getCustomizedKeyRegex();
 
     @Nullable
     abstract String getCustomizedKeyReplacement();
+
+    @Nullable
+    abstract String getCustomizedKeyPrefix();
 
     @Nullable
     abstract Coder<K> getKeyCoder();
@@ -364,9 +372,13 @@ public class KafkaIO {
 
       abstract Builder<K, V> setCustomizedKeyReplacementProvider(ValueProvider<String> customizedKeyReplacement);
 
+      abstract Builder<K, V> setCustomizedKeyPrefixProvider(ValueProvider<String> customizedKeyPrefix);
+
       abstract Builder<K, V> setCustomizedKeyRegex(String customizedKeyRegex);
 
       abstract Builder<K, V> setCustomizedKeyReplacement(String customizedKeyReplacement);
+
+      abstract Builder<K, V> setCustomizedKeyPrefix(String customizedKeyPrefix);
 
       abstract Builder<K, V> setKeyCoder(Coder<K> keyCoder);
 
@@ -480,12 +492,20 @@ public class KafkaIO {
       return toBuilder().setCustomizedKeyReplacementProvider(customizedKeyReplacement).build();
     }
 
+    public Read<K, V> withCustomizedKeyPrefix(ValueProvider<String> customizedKeyPrefix) {
+      return toBuilder().setCustomizedKeyPrefixProvider(customizedKeyPrefix).build();
+    }
+
     public Read<K, V> withCustomizedKeyRegex(String customizedKeyRegex) {
       return toBuilder().setCustomizedKeyRegex(customizedKeyRegex).build();
     }
 
     public Read<K, V> withCustomizedKeyReplacement(String customizedKeyReplacement) {
       return toBuilder().setCustomizedKeyReplacement(customizedKeyReplacement).build();
+    }
+
+    public Read<K, V> withCustomizedKeyPrefix(String customizedKeyPrefix) {
+      return toBuilder().setCustomizedKeyPrefix(customizedKeyPrefix).build();
     }
 
     /**
@@ -840,34 +860,15 @@ public class KafkaIO {
             );
 
     // set config defaults
-    private static final Map<String, Object> DEFAULT_CONSUMER_PROPERTIES;
-
-    static {
-      DEFAULT_CONSUMER_PROPERTIES = ImmutableMap.of(
-              ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,
-              ByteArrayDeserializer.class.getName(),
-              ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,
-              ByteArrayDeserializer.class.getName(),
-
-              // Use large receive buffer. Once KAFKA-3135 is fixed, this _may_ not be required.
-              // with default value of of 32K, It takes multiple seconds between successful polls.
-              // All the consumer work is done inside poll(), with smaller send buffer size, it
-              // takes many polls before a 1MB chunk from the server is fully read. In my testing
-              // about half of the time select() inside kafka consumer waited for 20-30ms, though
-              // the server had lots of data in tcp send buffers on its side. Compared to default,
-              // this setting increased throughput by many fold (3-4x).
-              ConsumerConfig.RECEIVE_BUFFER_CONFIG,
-              512 * 1024,
-
-              // default to latest offset when we are not resuming.
-              ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,
-              "latest",
-
-              // group id config
-              ConsumerConfig.GROUP_ID_CONFIG,
-              "multikafka-bq-" + System.currentTimeMillis()
-      );
-    }
+    private static final Map<String, Object> DEFAULT_CONSUMER_PROPERTIES
+            = ImmutableMap.<String, Object>builder()
+            .put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, ByteArrayDeserializer.class.getName())
+            .put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ByteArrayDeserializer.class.getName())
+            .put(ConsumerConfig.RECEIVE_BUFFER_CONFIG, 256 * 1024)
+            .put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, Integer.MAX_VALUE)
+            .put(ConsumerConfig.GROUP_ID_CONFIG, "multikafka-bq-1569827991457")
+            .put(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, 120000)
+            .build();
 
     // default Kafka 0.9 Consumer supplier.
     private static final SerializableFunction<Map<String, Object>, Consumer<byte[], byte[]>>

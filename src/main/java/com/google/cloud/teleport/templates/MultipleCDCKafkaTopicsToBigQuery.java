@@ -79,12 +79,12 @@ import java.util.stream.Collectors;
  * </ul>
  *
  * <p><b>Example Usage</b>
- *
+ * Template: bmd-unicornfish/dataflow/pipelines/cdc-to-bq/template
  * <pre>
  * # Set the pipeline vars
  * PROJECT_ID=PROJECT ID HERE
  * BUCKET_NAME=BUCKET NAME HERE
- * PIPELINE_FOLDER=gs://${BUCKET_NAME}/dataflow/pipelines/multi-cdckafka-bq
+ * PIPELINE_FOLDER=gs://${BUCKET_NAME}/dataflow/pipelines/cdc-to-bq
  *
  * # Set the runner
  * RUNNER=DataflowRunner
@@ -110,9 +110,10 @@ import java.util.stream.Collectors;
  * "bootstrapServers=my_host:9092,\
  * inputTopicRegex=(.*),\
  * outputTableRegexPattern=(.*),\
- * outputTableReplacement=BigQueryProjectID:dataset.table_prefix_$1_suffix
+ * outputTableReplacement=table_prefix_$1_suffix
  * javascriptTextTransformGcsPath=gs://my_bucket/my_udf.js
  * javascriptTextTransformFunctionName=myFunction
+ * outputTablePrefix=BigQueryProjectID:dataset.
  * </pre>
  */
 public class MultipleCDCKafkaTopicsToBigQuery {
@@ -162,6 +163,11 @@ public class MultipleCDCKafkaTopicsToBigQuery {
     ValueProvider<String> getBootstrapServers();
 
     void setBootstrapServers(ValueProvider<String> value);
+
+    @Description("BigQuery Project and Dataset Name with format => projectName:dataset.")
+    ValueProvider<String> getOutputTablePrefix();
+
+    void setOutputTablePrefix(ValueProvider<String> value);
   }
 
   /**
@@ -219,6 +225,7 @@ public class MultipleCDCKafkaTopicsToBigQuery {
                                     .withBootstrapServers(options.getBootstrapServers())
                                     .withTopicRegex(options.getInputTopicRegex())
                                     .withCustomizedKeyRegex(options.getOutputTableRegexPattern())
+                                    .withCustomizedKeyPrefix(options.getOutputTablePrefix())
                                     .withCustomizedKeyReplacement(options.getOutputTableReplacement())
                                     .withKeyDeserializer(StringDeserializer.class)
                                     .withValueDeserializer(StringDeserializer.class)
@@ -230,7 +237,8 @@ public class MultipleCDCKafkaTopicsToBigQuery {
                       @ProcessElement
                       public void processElement(ProcessContext c){
                         KafkaRecord<String, String> element = c.element();
-                        c.output(KV.of(element.getCustomizedKey(), element.getKV().getValue()));
+                        c.output(KV.of(element.getCustomizedKey()
+                                , element.getKV().getValue()));
                       }
                     }))
                     .apply("TransformMessagesUsingUDF", new TransformMessagesUsingUDF(options));
@@ -262,7 +270,7 @@ public class MultipleCDCKafkaTopicsToBigQuery {
                                 for(idx = 0; idx < jsonFieldsLen; idx++){
                                   jsonField = jsonFields.getJSONObject(idx);
                                   fields.add(new TableFieldSchema()
-                                                .setName(jsonField.getString("field").replaceAll("( |-|%|\\(|\\))", "_"))
+                                                .setName(jsonField.getString("field").replaceAll("([^a-zA-Z0-9])", "_"))
                                                 .setType((jsonField.getString("type") == "int32" || jsonField.getString("type") == "int64") ? "INTEGER"
                                                         : (jsonField.getString("type") == "double") ? "FLOAT"
                                                         : (jsonField.getString("type") == "boolean") ? "BOOLEAN"

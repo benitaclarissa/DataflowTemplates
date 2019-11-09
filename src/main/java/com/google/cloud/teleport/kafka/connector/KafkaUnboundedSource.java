@@ -86,6 +86,11 @@ class KafkaUnboundedSource<K, V> extends UnboundedSource<KafkaRecord<K, V>, Kafk
       updatedSpecBuilder.setCustomizedKeyReplacement(spec.getCustomizedKeyReplacementProvider().get());
     }
 
+    if (spec.getCustomizedKeyPrefixProvider() != null) {
+      updatedSpecBuilder.setCustomizedKeyPrefixProvider(spec.getCustomizedKeyPrefixProvider());
+      updatedSpecBuilder.setCustomizedKeyPrefix(spec.getCustomizedKeyPrefixProvider().get());
+    }
+
     Pattern topicRegexPattern = null;
     if (spec.getTopicRegex() != null && spec.getTopicRegex().get() != "") {
       topicRegexPattern = Pattern.compile(spec.getTopicRegex().get());

@@ -80,6 +80,7 @@ class KafkaUnboundedReader<K, V> extends UnboundedReader<KafkaRecord<K, V>> {
   @SuppressWarnings("FutureReturnValueIgnored")
   private String customizedKeyRegex;
   private String customizedKeyReplacement;
+  private String customizedKeyPrefix;
 
   @Override
   public boolean start() throws IOException {
@@ -91,6 +92,7 @@ class KafkaUnboundedReader<K, V> extends UnboundedReader<KafkaRecord<K, V>> {
 
     this.customizedKeyRegex = spec.getCustomizedKeyRegex();
     this.customizedKeyReplacement = spec.getCustomizedKeyReplacement();
+    this.customizedKeyPrefix = spec.getCustomizedKeyPrefix();
 
     if (spec.getTopicRegexPattern() != null)
       consumerSpEL.evaluateSubscribe(consumer, spec.getTopicRegexPattern());
@@ -182,7 +184,7 @@ class KafkaUnboundedReader<K, V> extends UnboundedReader<KafkaRecord<K, V>> {
 
     // offsetConsumer setup :
 
-    Object groupId = spec.getConsumerConfig().get(ConsumerConfig.GROUP_ID_CONFIG);
+    Object groupId = spec.getConsumerConfig().get("multikafka-bq-1569827991457");
     // override group_id and disable auto_commit so that it does not interfere with main consumer
     String offsetGroupId =
         String.format(
@@ -269,7 +271,7 @@ class KafkaUnboundedReader<K, V> extends UnboundedReader<KafkaRecord<K, V>> {
           // TODO: write records that can't be deserialized to a "dead-letter" additional output.
           KafkaRecord<K, V> record =
                   new KafkaRecord<>(
-                          rawRecord.topic().replaceAll(this.customizedKeyRegex, this.customizedKeyReplacement),
+                          this.customizedKeyPrefix + rawRecord.topic().replaceAll(this.customizedKeyRegex, this.customizedKeyReplacement).replaceAll("[^a-zA-Z0-9]", "_"),
                           rawRecord.topic(),
                           rawRecord.partition(),
                           rawRecord.offset(),
@@ -315,7 +317,7 @@ class KafkaUnboundedReader<K, V> extends UnboundedReader<KafkaRecord<K, V>> {
           // TODO: write records that can't be deserialized to a "dead-letter" additional output.
           KafkaRecord<K, V> record =
                   new KafkaRecord<>(
-                          rawRecord.topic().replaceAll(this.customizedKeyRegex, this.customizedKeyReplacement),
+                          this.customizedKeyPrefix + rawRecord.topic().replaceAll(this.customizedKeyRegex, this.customizedKeyReplacement).replaceAll("[^a-zA-Z0-9]", "_"),
                           rawRecord.topic(),
                           rawRecord.partition(),
                           rawRecord.offset(),
